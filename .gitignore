@@ -85,6 +85,9 @@ target/
 __pycache__/
 local_settings.py
 
+/static/*
+!/static/.keep
+
 .env
 .env.local
 .env.production
