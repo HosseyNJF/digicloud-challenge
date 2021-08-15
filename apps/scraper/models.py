@@ -1,8 +1,22 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from django_celery_beat.models import PeriodicTask
+
+from apps.authentication.models import User
+from apps.scraper import rss
+
+
+class FeedManager(models.Manager):
+    def create_from_url(self, url):
+        feed_dict, _ = rss.parse_url(url)
+        feed = self.create(url=url, **feed_dict)
+        feed.update_items()
+        return feed
 
 
 class Feed(models.Model):
+    objects = FeedManager()
+
     url = models.URLField(
         _('url'),
     )
@@ -72,6 +86,39 @@ class Feed(models.Model):
         auto_now_add=True,
     )
 
+    # Technical fields
+    users = models.ManyToManyField(
+        User,
+        verbose_name=_('users'),
+        related_name='feeds',
+        through='Subscription',
+    )
+    periodic_task = models.ForeignKey(
+        PeriodicTask,
+        verbose_name=_('periodic task'),
+        on_delete=models.RESTRICT,
+        blank=True,
+        null=True,
+    )
+
+    def update_items(self):
+        feed_dict, item_dict_list = rss.parse_url(self.url)
+
+        for attr, value in feed_dict.items():
+            setattr(self, attr, value)
+        self.save()
+
+        present_item_keys = [present_item.link for present_item in self.items.all()]
+        fresh_items = []
+
+        for item_dict in item_dict_list:
+            if item_dict['link'] not in present_item_keys:
+                fresh_items.append(Item(
+                    feed=self,
+                    **item_dict
+                ))
+        Item.objects.bulk_create(fresh_items)
+
 
 class Item(models.Model):
     feed = models.ForeignKey(
@@ -126,6 +173,23 @@ class Item(models.Model):
         null=True,
     )
 
+    date_created = models.DateTimeField(
+        _('date created'),
+        auto_now_add=True,
+    )
+
+
+class Subscription(models.Model):
+    user = models.ForeignKey(
+        User,
+        verbose_name=_('user'),
+        on_delete=models.CASCADE,
+    )
+    feed = models.ForeignKey(
+        Feed,
+        verbose_name=_('feed'),
+        on_delete=models.CASCADE,
+    )
     date_created = models.DateTimeField(
         _('date created'),
         auto_now_add=True,
