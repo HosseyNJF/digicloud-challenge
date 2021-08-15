@@ -80,4 +80,4 @@ def _parse_content(content):
 
 
 def parse_url(url):
-    return _parse_content(requests.get(url).content)
+    return _parse_content(requests.get(url).text)
