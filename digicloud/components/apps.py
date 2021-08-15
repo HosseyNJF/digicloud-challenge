@@ -12,6 +12,7 @@ DEFAULT_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
+    "django_celery_beat",
 ]
 
 PROJECT_APPS = [

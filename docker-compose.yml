@@ -7,6 +7,7 @@ x-app-common:
   env_file:
     - .env.${APP_ENV}
   networks:
+    - redis
     - db
     - cache
 
@@ -24,6 +25,20 @@ services:
         --timeout 120
     ports:
       - ${APP_PORT}:8000
+
+  celery-worker:
+    <<: *app-common
+    command: python -m celery -A digicloud worker --loglevel=INFO
+
+  celery-beat:
+    <<: *app-common
+    command: python -m celery -A digicloud beat --loglevel=INFO
+
+  redis:
+    image: redis:6
+    command: ["redis-server", "--appendonly", "no", "--save", "", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
+    networks:
+      - redis
 
   db:
     image: postgres:13-alpine
@@ -45,3 +60,4 @@ volumes:
 networks:
   db:
   cache:
+  redis:
