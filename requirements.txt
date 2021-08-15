@@ -8,3 +8,4 @@ djangorestframework-simplejwt==4.7.2
 beautifulsoup4==4.9.3
 lxml==4.6.3
 requests==2.26.0
+coverage==5.5

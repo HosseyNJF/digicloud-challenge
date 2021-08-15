@@ -9,8 +9,9 @@ from apps.scraper import rss
 class FeedManager(models.Manager):
     def create_from_url(self, url):
         feed_dict, _ = rss.parse_url(url)
-        feed = self.create(url=url, **feed_dict)
-        feed.update_items()
+        feed_dict['url'] = url
+        feed = self.create(**feed_dict)
+        feed.update_items()  # TODO: fix: one extra request is being made here
         return feed
 
 
@@ -107,6 +108,14 @@ class Feed(models.Model):
         for attr, value in feed_dict.items():
             setattr(self, attr, value)
         self.save()
+
+        # RSS doesn't define a unique field for an item, and the closest we can get is the <guid> tag. The problem
+        # is that it isn't declared mandatory by the specifications, and it simply isn't reliable. We have to resort
+        # to alternate and not 100% perfect solutions.
+
+        # There are multiple approaches to finding duplicate items and preventing their re-insertion, But the
+        # most straightforward and error-proof way of them is to consider their permalink as their unique ID.
+        # Because most of the times, links aren't going to change. They should be considered permanent for any item.
 
         present_item_keys = [present_item.link for present_item in self.items.all()]
         fresh_items = []
