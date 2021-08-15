@@ -67,6 +67,11 @@ class Feed(models.Model):
         default=dict,
     )
 
+    date_created = models.DateTimeField(
+        _('date created'),
+        auto_now_add=True,
+    )
+
 
 class Item(models.Model):
     feed = models.ForeignKey(
@@ -119,4 +124,9 @@ class Item(models.Model):
         _('web pubDate'),
         blank=True,
         null=True,
+    )
+
+    date_created = models.DateTimeField(
+        _('date created'),
+        auto_now_add=True,
     )
