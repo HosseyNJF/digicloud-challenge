@@ -1,0 +1,5 @@
+from datetime import timedelta
+
+DIGICLOUD_DEFAULT_FEED_UPDATE_INTERVAL = timedelta(minutes=5)
+DIGICLOUD_BACKOFF_FACTOR = 1.5
+DIGICLOUD_BACKOFF_MAXIMUM_DURATION = timedelta(days=1)

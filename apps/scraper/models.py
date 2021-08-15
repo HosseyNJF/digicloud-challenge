@@ -1,6 +1,10 @@
+import json
+from datetime import timedelta
+
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django_celery_beat.models import PeriodicTask
+from django_celery_beat.models import PeriodicTask, IntervalSchedule
 
 from apps.authentication.models import User
 from apps.scraper import rss
@@ -12,6 +16,14 @@ class FeedManager(models.Manager):
         feed_dict['url'] = url
         feed = self.create(**feed_dict)
         feed.update_items()  # TODO: fix: one extra request is being made here
+        feed.periodic_task = PeriodicTask(
+            name=f'Update feed #{feed.pk}',
+            task='apps.scraper.tasks.update_feed',
+            args=json.dumps([feed.pk])
+        )
+        feed.interval = feed.expected_ttl
+        feed.periodic_task.save()
+        feed.save()
         return feed
 
 
@@ -88,6 +100,23 @@ class Feed(models.Model):
     )
 
     # Technical fields
+    @property
+    def expected_ttl(self) -> timedelta:
+        return self.ttl or settings.DIGICLOUD_DEFAULT_FEED_UPDATE_INTERVAL
+
+    @property
+    def interval(self) -> timedelta:
+        return timedelta(seconds=self.periodic_task.interval.every)
+
+    @interval.setter
+    def interval(self, interval: timedelta):
+        interval_schedule, _ = IntervalSchedule.objects.get_or_create(
+            every=interval.total_seconds(),
+            period=IntervalSchedule.SECONDS,
+        )
+        self.periodic_task.interval = interval_schedule
+        self.periodic_task.save()
+
     users = models.ManyToManyField(
         User,
         verbose_name=_('users'),
