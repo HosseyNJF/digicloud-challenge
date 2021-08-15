@@ -1,7 +1,10 @@
+from unittest import mock
+from unittest.mock import Mock
+
 from bs4 import BeautifulSoup
 from django.test import TestCase
 
-from apps.scraper.rss import _parse_categories, _parse_image, _PARSER_NAME, _parse_content, _parse_enclosure
+from apps.scraper.rss import _parse_categories, _parse_image, _PARSER_NAME, _parse_content, _parse_enclosure, parse_url
 from apps.scraper.tests import SAMPLE_XML, SAMPLE_FEED, SAMPLE_ITEMS
 
 
@@ -111,3 +114,12 @@ class RssParserTestCase(TestCase):
             output_items,
             SAMPLE_ITEMS
         )
+
+    @mock.patch('requests.get')
+    @mock.patch('apps.scraper.rss._parse_content')
+    def test_parse_url(self, mock_parse_content: Mock, mock_requests_get: Mock):
+        url = 'https://test.com'
+        parse_url(url)
+
+        mock_parse_content.assert_called_once()
+        mock_requests_get.assert_called_once_with(url)
