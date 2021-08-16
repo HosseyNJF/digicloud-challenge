@@ -1,12 +1,16 @@
 from rest_framework import serializers
 
-from apps.scraper.models import Subscription, Feed, Item
+from apps.scraper.models import Subscription, Feed, Item, Interaction
 
 
 class ItemSerializer(serializers.HyperlinkedModelSerializer):
+    is_seen = serializers.ReadOnlyField()
+    is_bookmarked = serializers.ReadOnlyField()
+    comment = serializers.ReadOnlyField()
+
     class Meta:
         model = Item
-        exclude = ()
+        exclude = ('viewers',)
 
 
 class FeedSerializer(serializers.HyperlinkedModelSerializer):
@@ -49,3 +53,10 @@ class SubscriptionSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Subscription
         fields = ('url', 'feed', 'date_created')
+
+
+class CommentSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Interaction
+        fields = ('comment',)

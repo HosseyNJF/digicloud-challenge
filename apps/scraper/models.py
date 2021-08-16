@@ -3,6 +3,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Prefetch
+from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 
@@ -25,6 +27,9 @@ class FeedManager(models.Manager):
         feed.periodic_task.save()
         feed.save()
         return feed
+
+    def for_user(self, user: User):
+        return self.filter(users__in=[user])
 
 
 class Feed(models.Model):
@@ -158,7 +163,33 @@ class Feed(models.Model):
         Item.objects.bulk_create(fresh_items)
 
 
+class ItemQuerySet(models.QuerySet):
+    def unread_item_count(self, user: User):
+        all_query = self.filter(feed__subscription__user=user)
+        read_query = all_query.filter(interactions__user=user)
+        return all_query.count() - read_query.count()
+
+    def bookmarks(self, user: User):
+        return self.filter(
+            interactions__date_bookmarked__isnull=False,
+            interactions__user=user
+        )
+
+    def for_user(self, user: User):
+        return self\
+            .filter(feed__users__in=[user])\
+            .prefetch_related(
+                Prefetch(
+                    'interactions',
+                    queryset=Interaction.objects.filter(user=user),
+                    to_attr='user_interactions'
+                )
+            )
+
+
 class Item(models.Model):
+    objects = ItemQuerySet.as_manager()
+
     feed = models.ForeignKey(
         to=Feed,
         on_delete=models.CASCADE,
@@ -216,8 +247,44 @@ class Item(models.Model):
         auto_now_add=True,
     )
 
+    # Technical fields
+    viewers = models.ManyToManyField(
+        User,
+        related_name='interacted_items',
+        through='Interaction',
+    )
+
+    @property
+    def is_seen(self):
+        assert hasattr(self, 'user_interactions')
+        return len(self.user_interactions) > 0 and self.user_interactions[0].date_seen is not None
+
+    @property
+    def is_bookmarked(self):
+        assert hasattr(self, 'user_interactions')
+        return len(self.user_interactions) > 0 and self.user_interactions[0].date_bookmarked is not None
+
+    @property
+    def comment(self):
+        assert hasattr(self, 'user_interactions')
+        return len(self.user_interactions) > 0 and self.user_interactions[0].comment
+
+    def interact_with_user(self, user: User) -> 'Interaction':
+        return Interaction.objects.get_or_create(
+            user=user,
+            item=self,
+        )[0]
+
+
+class SubscriptionQuerySet(models.QuerySet):
+
+    def for_user(self, user: User):
+        return self.filter(user=user)
+
 
 class Subscription(models.Model):
+    objects = SubscriptionQuerySet.as_manager()
+
     user = models.ForeignKey(
         User,
         verbose_name=_('user'),
@@ -232,3 +299,42 @@ class Subscription(models.Model):
         _('date created'),
         auto_now_add=True,
     )
+
+
+class Interaction(models.Model):
+    user = models.ForeignKey(
+        User,
+        verbose_name=_('user'),
+        on_delete=models.CASCADE,
+        related_name='interactions',
+    )
+    item = models.ForeignKey(
+        Item,
+        verbose_name=_('item'),
+        on_delete=models.RESTRICT,
+        related_name='interactions',
+    )
+    date_seen = models.DateTimeField(
+        _('date seen'),
+        auto_now_add=True,
+        blank=True,
+        null=True,
+    )
+    date_bookmarked = models.DateTimeField(
+        _('date bookmarked'),
+        blank=True,
+        null=True,
+    )
+    comment = models.TextField(
+        _('comment'),
+        blank=True,
+        null=True,
+    )
+
+    def add_bookmark(self):
+        self.date_bookmarked = now()
+        self.save()
+
+    def remove_bookmark(self):
+        self.date_bookmarked = None
+        self.save()

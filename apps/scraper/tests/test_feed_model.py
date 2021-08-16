@@ -29,6 +29,7 @@ class FeedModelTestCase(TestCase):
             item_dict = model_to_dict(item)
             del item_dict['id']
             del item_dict['feed']
+            del item_dict['viewers']
             output_item_dicts.append(item_dict)
 
         self.assertListEqual(
