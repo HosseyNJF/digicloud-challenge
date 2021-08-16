@@ -7,6 +7,8 @@ from django.forms import model_to_dict
 from django.test import TestCase
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 
+from apps.authentication.models import User
+from apps.authentication.tests import SAMPLE_USER
 from apps.scraper.models import Item, Feed
 from apps.scraper.tests import SAMPLE_FEED, SAMPLE_ITEMS
 
@@ -89,3 +91,12 @@ class FeedModelTestCase(TestCase):
         feed = Feed(periodic_task=task)
         feed.interval = timedelta(seconds=60)
         self.assertEqual(task.interval.every, 60)
+
+    def test_for_user_scope(self):
+        user = User.objects.create_user(**SAMPLE_USER)
+        allowed_feed = Feed.objects.create(url='https://test.com', **SAMPLE_FEED)
+        disallowed_feed = Feed.objects.create(url='https://test2.com', **SAMPLE_FEED)
+        allowed_feed.users.add(user)
+
+        allowed_feeds = Feed.objects.for_user(user).all()
+        self.assertListEqual(list(allowed_feeds), [allowed_feed])
